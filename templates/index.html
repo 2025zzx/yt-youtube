@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 视频下载器</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            max-width: 1200px; /* 增大容器宽度 */
+            margin-top: 50px;
+        }
+        .form-group input {
+            width: 100%;
+            border-radius: 5px;
+        }
+        .button {
+            width: 100%;
+            background-color: #ff4f00;
+            color: white;
+            font-size: 16px;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .button:hover {
+            background-color: #d43f00;
+        }
+        .clear-button {
+            width: 100%;
+            background-color: #6c757d;
+            color: white;
+            font-size: 16px;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .clear-button:hover {
+            background-color: #5a6268;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        .card {
+            border-radius: 10px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .card-body {
+            text-align: center;
+        }
+        .download-item {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .download-item img {
+            width: 120px;
+            height: auto;
+            border-radius: 8px;
+        }
+        .download-item .info {
+            flex-grow: 1;  /* 让 info 部分占据剩余空间 */
+            min-width: 200px;  /* 防止被压缩 */
+            margin-left: 15px;
+            text-align: left;
+        }
+        .download-item .buttons {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin-left: 20px;
+            width: 120px;
+            min-width: 120px;
+        }
+        .download-item .buttons button {
+            width: 100%;  /* 按钮宽度占满容器 */
+            margin-bottom: 10px;
+        }
+        .download-item .progress-text {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>YouTube 视频下载器</h2>
+            <div class="card-body">
+                <form id="downloadForm">
+                    <div class="form-group">
+                        <input type="text" class="form-control" id="url" name="url" placeholder="请输入 YouTube 视频链接" required>
+                    </div>
+                    <button type="submit" class="button" id="submitButton">粘贴链接</button>
+                </form>
+
+                <div id="downloadList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const downloadForm = document.getElementById('downloadForm');
+        const urlInput = document.getElementById('url');
+        const downloadList = document.getElementById('downloadList');
+        const submitButton = document.getElementById('submitButton');
+
+        downloadForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const videoUrl = urlInput.value;
+            submitButton.disabled = true;
+            submitButton.innerText = "视频信息解析中...";
+
+            fetch('/video_info', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: videoUrl })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    createDownloadItem(data.video_info);
+                    urlInput.value = '';
+                    submitButton.disabled = false;
+                    submitButton.innerText = "粘贴链接";
+                }
+            })
+            .catch(error => {
+                console.error('获取视频信息出错:', error);
+                submitButton.disabled = false;
+                submitButton.innerText = "粘贴链接";
+            });
+        });
+
+        function createDownloadItem(videoInfo) {
+            const itemDiv = document.createElement('div');
+            itemDiv.classList.add('download-item');
+
+            const img = document.createElement('img');
+            img.src = videoInfo.thumbnail;
+
+            const infoDiv = document.createElement('div');
+            infoDiv.classList.add('info');
+            const title = document.createElement('h5');
+            title.innerText = videoInfo.title;
+            const duration = document.createElement('p');
+            duration.innerText = `时长: ${videoInfo.duration}`;
+
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.classList.add('buttons');
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.classList.add('button');
+            downloadBtn.innerText = '开始下载';
+            downloadBtn.addEventListener('click', () => {
+                startDownload(videoInfo.url, downloadBtn);
+            });
+
+            const clearBtn = document.createElement('button');
+            clearBtn.classList.add('clear-button');
+            clearBtn.innerText = '清除视频信息';
+            clearBtn.addEventListener('click', () => {
+                itemDiv.remove();
+            });
+
+            infoDiv.appendChild(title);
+            infoDiv.appendChild(duration);
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(infoDiv);
+            buttonsDiv.appendChild(downloadBtn);
+            buttonsDiv.appendChild(clearBtn);
+            itemDiv.appendChild(buttonsDiv);
+            downloadList.appendChild(itemDiv);
+        }
+
+        function startDownload(url, downloadBtn) {
+            // 修改按钮状态，显示下载进度
+            downloadBtn.disabled = true;
+            downloadBtn.innerText = '下载中...';
+
+            fetch('/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === '下载开始') {
+                    // 开始轮询获取下载进度
+                    startProgressPolling(downloadBtn, url);
+                }
+            })
+            .catch(error => {
+                console.error('下载出错:', error);
+            });
+        }
+
+        function startProgressPolling(downloadBtn, url) {
+            const intervalId = setInterval(() => {
+                fetch('/progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })  // 将 url 传递给后端
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.filename && data.percent !== undefined) {
+                        downloadBtn.innerText = `下载中... ${data.percent.toFixed(0)}%`;
+
+                        // 当进度达到100%，停止轮询并恢复按钮状态
+                        if (data.percent >= 100) {
+                            clearInterval(intervalId);
+                            downloadBtn.innerText = '开始下载';
+                            downloadBtn.disabled = false;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('获取进度出错:', error);
+                });
+            }, 1000); // 每1秒请求一次进度
+        }
+    </script>
+</body>
+</html>
